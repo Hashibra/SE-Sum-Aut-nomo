@@ -12,7 +12,7 @@ const int INVERTE_DIR = 1;
 const int VEL_MINIMA = 1;
 
 int ajustarVel(int valor_pedido) {
-  vel = constrain(valor_pedido, -255, 255);
+  int vel = constrain(valor_pedido, -255, 255);
 
   if (vel == 0) {
     return 0;

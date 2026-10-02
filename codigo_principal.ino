@@ -12,16 +12,22 @@ const int VEL_MINIMA = 1;
 
 const int Led = 2;
 
+// Único sensor infravermelho (HIGH = fora da arena)
 const int sensor1 = 13;
-const int sensor2 = 12;
 
-int est1 = LOW;
-int est2 = LOW;
+// Botões de estratégia (um botão entre o pino e o GND, com INPUT_PULLUP)
+// Troque os pinos se ligar em outros
+const int BOTAO_EST1 = 30;
+const int BOTAO_EST2 = 31;
+const int BOTAO_EST3 = 32;
 
-int lerIF1 = LOW;
-int lerIF2 = LOW;
+// Debounce dos botões
+const int NUM_BOTOES = 3;
+const int PINOS_BOTOES[NUM_BOTOES] = {BOTAO_EST1, BOTAO_EST2, BOTAO_EST3};
+const unsigned long TEMPO_DEBOUNCE = 50;  // ms
 
-int luta = HIGH;
+bool ultimaLeituraBotao[NUM_BOTOES];            // true = apertado (leitura crua)
+unsigned long ultimaMudancaBotao[NUM_BOTOES];   // momento da última mudança
 
 #define TRIG_PIN 22
 #define ECHO_PIN 23
@@ -65,9 +71,7 @@ int ajustarVel(int valor_pedido) {
   int sinal;
   if (vel > 0) {
     sinal = 1;
-  }
-
-  else {
+  } else {
     sinal = -1;
   }
 
@@ -81,14 +85,10 @@ void motorEsquerdo(int vel) {
   if (vel > 0) {
     analogWrite(MOT_ESQ_A, vel);
     analogWrite(MOT_ESQ_B, 0);
-  }
-
-  else if (vel < 0) {
+  } else if (vel < 0) {
     analogWrite(MOT_ESQ_A, 0);
     analogWrite(MOT_ESQ_B, -vel);
-  }
-
-  else {
+  } else {
     analogWrite(MOT_ESQ_A, 0);
     analogWrite(MOT_ESQ_B, 0);
   }
@@ -99,14 +99,10 @@ void motorDireito(int vel) {
   if (vel > 0) {
     analogWrite(MOT_DIR_A, vel);
     analogWrite(MOT_DIR_B, 0);
-  }
-
-  else if (vel < 0) {
+  } else if (vel < 0) {
     analogWrite(MOT_DIR_A, 0);
     analogWrite(MOT_DIR_B, -vel);
-  }
-
-  else {
+  } else {
     analogWrite(MOT_DIR_A, 0);
     analogWrite(MOT_DIR_B, 0);
   }
@@ -162,53 +158,43 @@ void motoresIniciar() {
 
 void sensoresIniciar() {
   pinMode(sensor1, INPUT);
-  pinMode(sensor2, INPUT);
   pinMode(Led, OUTPUT);
+
+  for (int i = 0; i < NUM_BOTOES; i++) {
+    pinMode(PINOS_BOTOES[i], INPUT_PULLUP);
+    ultimaLeituraBotao[i] = false;
+    ultimaMudancaBotao[i] = millis();
+  }
 }
 
-bool foraEsquerda() {
+// Retorna true se o botão i está apertado de forma estável por TEMPO_DEBOUNCE ms.
+// Com INPUT_PULLUP, botão apertado = LOW.
+bool botaoApertado(int i) {
+  bool leitura = (digitalRead(PINOS_BOTOES[i]) == LOW);
+
+  // Se a leitura mudou, reinicia a contagem
+  if (leitura != ultimaLeituraBotao[i]) {
+    ultimaLeituraBotao[i] = leitura;
+    ultimaMudancaBotao[i] = millis();
+  }
+
+  // Só vale se estiver apertado e estável pelo tempo mínimo
+  return leitura && (millis() - ultimaMudancaBotao[i] >= TEMPO_DEBOUNCE);
+}
+
+// Espera um dos 3 botões ser apertado e devolve o número da estratégia (1, 2 ou 3).
+int esperarBotaoEstrategia() {
+  while (true) {
+    for (int i = 0; i < NUM_BOTOES; i++) {
+      if (botaoApertado(i)) {
+        return i + 1;
+      }
+    }
+  }
+}
+
+bool foraDaArena() {
   return digitalRead(sensor1) == HIGH;
-}
-
-bool foraDireita() {
-  return digitalRead(sensor2) == HIGH;
-}
-
-int confere(int infra1, int infra2) {
-  if (infra1 == LOW && infra2 == LOW) {
-    est1 = LOW;
-    est2 = LOW;
-    return HIGH;
-  }
-
-  if (infra1 == HIGH) {
-    if (est1 == LOW) {
-      est1 = HIGH;
-      if (est2 == HIGH) {
-        return LOW;
-      }
-    }
-  }
-
-  if (infra2 == HIGH) {
-    if (est2 == LOW) {
-      est2 = HIGH;
-      if (est1 == HIGH) {
-        return LOW;
-      }
-    }
-  }
-  return HIGH;
-}
-
-void derrota() {
-  parar();
-  while (1 == 1) {
-    digitalWrite(Led, HIGH);
-    delay(500);
-    digitalWrite(Led, LOW);
-    delay(500);
-  }
 }
 
 bool lerDistancia() {
@@ -244,22 +230,17 @@ bool oponenteVisto() {
   return getDistancia() < DIST_ATAQUE;
 }
 
+// Com apenas 1 sensor não dá para saber de que lado está a borda,
+// então o robô recua e gira sempre para a direita.
 bool tratarBorda() {
-  bool esq = foraEsquerda();
-  bool dir = foraDireita();
-
-  if (!esq && !dir) {
+  if (!foraDaArena()) {
     return false;
   }
 
   tras(255);
   delay(TEMPO_RECUO);
 
-  if (esq) {
-    girarDireita(255);
-  } else {
-    girarEsquerda(255);
-  }
+  girarDireita(255);
   delay(TEMPO_GIRO_BORDA);
 
   return true;
@@ -299,10 +280,8 @@ void depurar() {
   if (tempoAtual - ultimoTempoPrint >= INTERVALO_PRINT) {
     ultimoTempoPrint = tempoAtual;
 
-    Serial.print("IR esq: ");
+    Serial.print("IR: ");
     Serial.print(digitalRead(sensor1));
-    Serial.print(" | IR dir: ");
-    Serial.print(digitalRead(sensor2));
     Serial.print(" | distancia: ");
     Serial.print(getDistancia());
     Serial.println(" cm");
@@ -314,6 +293,11 @@ void setup() {
   motoresIniciar();
   sensoresIniciar();
 
+  // Aguarda o botão da estratégia escolhida e só então começa a contagem
+  estrategia = esperarBotaoEstrategia();
+  Serial.print("Estrategia escolhida: ");
+  Serial.println(estrategia);
+
   delay(5000);
   tempoInicio = millis();
 }
@@ -321,14 +305,6 @@ void setup() {
 void loop() {
   if (DEBUG) {
     depurar();
-  }
-
-  lerIF1 = digitalRead(sensor1);
-  lerIF2 = digitalRead(sensor2);
-  luta = confere(lerIF1, lerIF2);
-
-  if (luta == LOW) {
-    derrota();
   }
 
   if (tratarBorda()) {

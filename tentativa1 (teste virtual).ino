@@ -1,8 +1,8 @@
-#include <NewPing.h>
-
+// NÃO USAR NEWPING
+// Pinos dos motores (todos PWM no UNO: 6, 9, 10, 11)
 const int MOT_ESQ_A = 6;
-const int MOT_ESQ_B = 7;
-const int MOT_DIR_A = 8;
+const int MOT_ESQ_B = 10;
+const int MOT_DIR_A = 11;
 const int MOT_DIR_B = 9;
 
 const int INVERTE_ESQ = 1;
@@ -13,8 +13,8 @@ const int VEL_MINIMA = 1;
 // Único sensor infravermelho (HIGH = fora da arena)
 const int sensor1 = 2;
 
-// Botões de estratégia (um botão entre o pino e o GND, com INPUT_PULLUP)
-// Troque os pinos se ligar em outros
+// Botões de estratégia em PULL-DOWN externo (resistor de 1k para o GND)
+// Solto = LOW, apertado = HIGH
 const int BOTAO_EST1 = 3;
 const int BOTAO_EST2 = 4;
 const int BOTAO_EST3 = 5;
@@ -30,8 +30,6 @@ unsigned long ultimaMudancaBotao[NUM_BOTOES];   // momento da última mudança
 #define TRIG_PIN 12
 #define ECHO_PIN 13
 #define DISTANCIA_MAXIMA 200
-
-NewPing sonar(TRIG_PIN, ECHO_PIN, DISTANCIA_MAXIMA);
 
 unsigned long ultimoTempoMedicao = 0;
 const unsigned long INTERVALO_MEDICAO = 50;
@@ -155,17 +153,20 @@ void motoresIniciar() {
 void sensoresIniciar() {
   pinMode(sensor1, INPUT);
 
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
   for (int i = 0; i < NUM_BOTOES; i++) {
-    pinMode(PINOS_BOTOES[i], INPUT_PULLUP);
+    pinMode(PINOS_BOTOES[i], INPUT);   // pull-down externo
     ultimaLeituraBotao[i] = false;
     ultimaMudancaBotao[i] = millis();
   }
 }
 
 // Retorna true se o botão i está apertado de forma estável por TEMPO_DEBOUNCE ms.
-// Com INPUT_PULLUP, botão apertado = LOW.
+// Com pull-down externo, botão apertado = HIGH.
 bool botaoApertado(int i) {
-  bool leitura = (digitalRead(PINOS_BOTOES[i]) == LOW);
+  bool leitura = (digitalRead(PINOS_BOTOES[i]) == HIGH);
 
   // Se a leitura mudou, reinicia a contagem
   if (leitura != ultimaLeituraBotao[i]) {
@@ -198,12 +199,23 @@ bool lerDistancia() {
   if (tempoAtual - ultimoTempoMedicao >= INTERVALO_MEDICAO) {
     ultimoTempoMedicao = tempoAtual;
 
-    unsigned int distancia = sonar.ping_cm();
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
 
-    if (distancia == 0) {
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+
+    unsigned long duracao = pulseIn(ECHO_PIN, HIGH, 30000);
+
+    if (duracao == 0) {
       distanciaAtual = DISTANCIA_MAXIMA;
     } else {
-      distanciaAtual = distancia;
+      distanciaAtual = duracao / 58.0;
+
+      if (distanciaAtual > DISTANCIA_MAXIMA) {
+        distanciaAtual = DISTANCIA_MAXIMA;
+      }
     }
 
     return true;

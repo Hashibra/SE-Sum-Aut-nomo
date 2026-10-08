@@ -1,4 +1,3 @@
-```cpp
 #include <NewPing.h>
 
 const int MOT_ESQ_A = 6;
@@ -311,4 +310,3 @@ void loop() {
     estrategia3();
   }
 }
-```

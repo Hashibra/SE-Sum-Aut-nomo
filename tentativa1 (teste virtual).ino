@@ -1,4 +1,3 @@
-// NÃO USAR NEWPING
 // Pinos dos motores (todos PWM no UNO: 6, 9, 10, 11)
 const int MOT_ESQ_A = 6;
 const int MOT_ESQ_B = 10;
@@ -179,12 +178,25 @@ bool botaoApertado(int i) {
 }
 
 // Espera um dos 3 botões ser apertado e devolve o número da estratégia (1, 2 ou 3).
+// Enquanto espera, imprime a leitura crua dos botões (para depuração).
 int esperarBotaoEstrategia() {
+  unsigned long ultimoPrint = 0;
+
   while (true) {
     for (int i = 0; i < NUM_BOTOES; i++) {
       if (botaoApertado(i)) {
         return i + 1;
       }
+    }
+
+    if (millis() - ultimoPrint >= 500) {
+      ultimoPrint = millis();
+      Serial.print("Botoes D3/D4/D5: ");
+      Serial.print(digitalRead(BOTAO_EST1));
+      Serial.print(" ");
+      Serial.print(digitalRead(BOTAO_EST2));
+      Serial.print(" ");
+      Serial.println(digitalRead(BOTAO_EST3));
     }
   }
 }
@@ -283,6 +295,8 @@ void depurar() {
   if (tempoAtual - ultimoTempoPrint >= INTERVALO_PRINT) {
     ultimoTempoPrint = tempoAtual;
 
+    lerDistancia();   // garante que a distância é atualizada em qualquer estratégia
+
     Serial.print("IR: ");
     Serial.print(digitalRead(sensor1));
     Serial.print(" | distancia: ");
@@ -295,6 +309,8 @@ void setup() {
   Serial.begin(9600);
   motoresIniciar();
   sensoresIniciar();
+
+  Serial.println("Aguardando botao...");
 
   // Aguarda o botão da estratégia escolhida e só então começa a contagem
   estrategia = esperarBotaoEstrategia();

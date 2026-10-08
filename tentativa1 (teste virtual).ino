@@ -1,17 +1,47 @@
+/*
+ * ============================================================
+ *  ROBÔ SUMÔ AUTÔNOMO (Arduino UNO)
+ * ============================================================
+ *  - 2 motores controlados por ponte H (PWM)
+ *  - 1 sensor infravermelho (detecta a borda da arena)
+ *  - 1 sensor ultrassônico (detecta o oponente)
+ *  - 3 botões para escolher a estratégia antes da luta
+ *
+ *  Organização do arquivo:
+ *    1. Pinos e constantes
+ *    2. Variáveis globais
+ *    3. Controle dos motores
+ *    4. Sensores e botões
+ *    5. Comportamentos (borda e estratégias)
+ *    6. Depuração
+ *    7. setup() e loop()
+ * ============================================================
+ */
+
+
+// ============================================================
+//  1. PINOS E CONSTANTES
+// ============================================================
+
+// ---------- Motores ----------
 // Pinos dos motores (todos PWM no UNO: 6, 9, 10, 11)
 const int MOT_ESQ_A = 6;
 const int MOT_ESQ_B = 10;
 const int MOT_DIR_A = 11;
 const int MOT_DIR_B = 9;
 
+// Inversão do sentido de cada motor (1 = normal, -1 = invertido)
 const int INVERTE_ESQ = 1;
 const int INVERTE_DIR = 1;
 
+// Velocidade mínima (PWM) em que o motor realmente começa a girar
 const int VEL_MINIMA = 1;
 
+// ---------- Sensor infravermelho (borda) ----------
 // Único sensor infravermelho (HIGH = fora da arena)
 const int sensor1 = 2;
 
+// ---------- Botões de estratégia ----------
 // Botões de estratégia em PULL-DOWN externo (resistor de 1k para o GND)
 // Solto = LOW, apertado = HIGH
 const int BOTAO_EST1 = 3;
@@ -23,40 +53,61 @@ const int NUM_BOTOES = 3;
 const int PINOS_BOTOES[NUM_BOTOES] = {BOTAO_EST1, BOTAO_EST2, BOTAO_EST3};
 const unsigned long TEMPO_DEBOUNCE = 50;  // ms
 
-bool ultimaLeituraBotao[NUM_BOTOES];            // true = apertado (leitura crua)
-unsigned long ultimaMudancaBotao[NUM_BOTOES];   // momento da última mudança
-
+// ---------- Sensor ultrassônico (oponente) ----------
 #define TRIG_PIN 12
 #define ECHO_PIN 13
-#define DISTANCIA_MAXIMA 200
+#define DISTANCIA_MAXIMA 200                       // cm
 
-unsigned long ultimoTempoMedicao = 0;
-const unsigned long INTERVALO_MEDICAO = 50;
+const unsigned long INTERVALO_MEDICAO = 50;        // ms entre medições
+const int DIST_ATAQUE = 35;                        // cm: abaixo disso, ataca
 
-float distanciaAtual = DISTANCIA_MAXIMA;
-
-const int DIST_ATAQUE = 35;
-
+// ---------- Velocidades (PWM de 0 a 255) ----------
 const int VEL_ATAQUE = 255;
 const int VEL_FRENTE = 200;
 const int VEL_GIRO = 150;
 
+// ---------- Tempos das manobras ----------
 // Multiplicador de tempo: 10 para testar no Tinkercad, 1 no robô real
 const unsigned long ESCALA_TEMPO = 10;
 
-const unsigned long TEMPO_RECUO = 300UL * ESCALA_TEMPO;
-const unsigned long TEMPO_GIRO_BORDA = 250UL * ESCALA_TEMPO;
-const unsigned long TEMPO_DESVIO_GIRO = 250UL * ESCALA_TEMPO;
-const unsigned long TEMPO_DESVIO_FRENTE = 400UL * ESCALA_TEMPO;
+const unsigned long TEMPO_RECUO = 300UL * ESCALA_TEMPO;          // recuo ao achar a borda
+const unsigned long TEMPO_GIRO_BORDA = 250UL * ESCALA_TEMPO;     // giro após o recuo
+const unsigned long TEMPO_DESVIO_GIRO = 250UL * ESCALA_TEMPO;    // estratégia 2: giro inicial
+const unsigned long TEMPO_DESVIO_FRENTE = 400UL * ESCALA_TEMPO;  // estratégia 2: avanço inicial
 
-int estrategia = 1;
-
-unsigned long tempoInicio = 0;
-
+// ---------- Depuração ----------
 const bool DEBUG = true;
-unsigned long ultimoTempoPrint = 0;
-const unsigned long INTERVALO_PRINT = 200;
+const unsigned long INTERVALO_PRINT = 200;         // ms entre prints
 
+
+// ============================================================
+//  2. VARIÁVEIS GLOBAIS
+// ============================================================
+
+// Estado dos botões (para o debounce)
+bool ultimaLeituraBotao[NUM_BOTOES];            // true = apertado (leitura crua)
+unsigned long ultimaMudancaBotao[NUM_BOTOES];   // momento da última mudança
+
+// Estado do sensor ultrassônico
+unsigned long ultimoTempoMedicao = 0;
+float distanciaAtual = DISTANCIA_MAXIMA;
+
+// Estado da luta
+int estrategia = 1;                // estratégia escolhida (1, 2 ou 3)
+unsigned long tempoInicio = 0;     // momento em que a luta começou
+
+// Estado da depuração
+unsigned long ultimoTempoPrint = 0;
+
+
+// ============================================================
+//  3. CONTROLE DOS MOTORES
+// ============================================================
+
+// ---------- Baixo nível ----------
+
+// Limita o valor entre -255 e 255 e reescala o módulo para
+// começar em VEL_MINIMA (0 continua sendo 0).
 int ajustarVel(int valor_pedido) {
   int vel = constrain(valor_pedido, -255, 255);
 
@@ -76,6 +127,7 @@ int ajustarVel(int valor_pedido) {
   return sinal * modulo;
 }
 
+// Motor esquerdo: vel > 0 = frente, vel < 0 = trás, 0 = parado
 void motorEsquerdo(int vel) {
   vel = ajustarVel(vel) * INVERTE_ESQ;
   if (vel > 0) {
@@ -90,6 +142,7 @@ void motorEsquerdo(int vel) {
   }
 }
 
+// Motor direito: vel > 0 = frente, vel < 0 = trás, 0 = parado
 void motorDireito(int vel) {
   vel = ajustarVel(vel) * INVERTE_DIR;
   if (vel > 0) {
@@ -104,10 +157,13 @@ void motorDireito(int vel) {
   }
 }
 
+// Controla os dois motores de uma vez
 void motores(int esq, int dir) {
   motorEsquerdo(esq);
   motorDireito(dir);
 }
+
+// ---------- Movimentos ----------
 
 void parar() {
   motores(0, 0);
@@ -121,6 +177,7 @@ void tras(int vel) {
   motores(-vel, -vel);
 }
 
+// Giro no próprio eixo
 void girarEsquerda(int vel) {
   motores(-vel, vel);
 }
@@ -129,6 +186,7 @@ void girarDireita(int vel) {
   motores(vel, -vel);
 }
 
+// Curva (um lado com metade da velocidade)
 void curvaEsquerda(int vel) {
   motores(vel / 2, vel);
 }
@@ -137,12 +195,15 @@ void curvaDireita(int vel) {
   motores(vel, vel / 2);
 }
 
+// Freio: os dois lados de cada ponte H em HIGH
 void freio() {
   digitalWrite(MOT_ESQ_A, HIGH);
   digitalWrite(MOT_ESQ_B, HIGH);
   digitalWrite(MOT_DIR_A, HIGH);
   digitalWrite(MOT_DIR_B, HIGH);
 }
+
+// ---------- Inicialização ----------
 
 void motoresIniciar() {
   pinMode(MOT_ESQ_A, OUTPUT);
@@ -151,6 +212,13 @@ void motoresIniciar() {
   pinMode(MOT_DIR_B, OUTPUT);
   parar();
 }
+
+
+// ============================================================
+//  4. SENSORES E BOTÕES
+// ============================================================
+
+// ---------- Inicialização ----------
 
 void sensoresIniciar() {
   pinMode(sensor1, INPUT);
@@ -164,6 +232,8 @@ void sensoresIniciar() {
     ultimaMudancaBotao[i] = millis();
   }
 }
+
+// ---------- Botões ----------
 
 // Retorna true se o botão i está apertado de forma estável por TEMPO_DEBOUNCE ms.
 // Com pull-down externo, botão apertado = HIGH.
@@ -204,16 +274,24 @@ int esperarBotaoEstrategia() {
   }
 }
 
+// ---------- Sensor infravermelho (borda) ----------
+
+// true se o sensor IR detecta que o robô está fora da arena
 bool foraDaArena() {
   return digitalRead(sensor1) == HIGH;
 }
 
+// ---------- Sensor ultrassônico (oponente) ----------
+
+// Faz uma nova medição a cada INTERVALO_MEDICAO ms e guarda em distanciaAtual.
+// Retorna true se mediu agora, false se ainda não deu o intervalo.
 bool lerDistancia() {
   unsigned long tempoAtual = millis();
 
   if (tempoAtual - ultimoTempoMedicao >= INTERVALO_MEDICAO) {
     ultimoTempoMedicao = tempoAtual;
 
+    // Pulso de disparo no TRIG
     digitalWrite(TRIG_PIN, LOW);
     delayMicroseconds(2);
 
@@ -221,12 +299,14 @@ bool lerDistancia() {
     delayMicroseconds(10);
     digitalWrite(TRIG_PIN, LOW);
 
+    // Tempo do eco (timeout de 30 ms)
     unsigned long duracao = pulseIn(ECHO_PIN, HIGH, 30000);
 
     if (duracao == 0) {
+      // Sem eco: considera que não há nada à frente
       distanciaAtual = DISTANCIA_MAXIMA;
     } else {
-      distanciaAtual = duracao / 58.0;
+      distanciaAtual = duracao / 58.0;   // converte µs em cm
 
       if (distanciaAtual > DISTANCIA_MAXIMA) {
         distanciaAtual = DISTANCIA_MAXIMA;
@@ -239,17 +319,27 @@ bool lerDistancia() {
   return false;
 }
 
+// Última distância medida (cm)
 float getDistancia() {
   return distanciaAtual;
 }
 
+// true se há um oponente dentro da distância de ataque
 bool oponenteVisto() {
   lerDistancia();
   return getDistancia() < DIST_ATAQUE;
 }
 
+
+// ============================================================
+//  5. COMPORTAMENTOS (BORDA E ESTRATÉGIAS)
+// ============================================================
+
+// ---------- Tratamento de borda ----------
+
 // Com apenas 1 sensor não dá para saber de que lado está a borda,
 // então o robô recua e gira sempre para a direita.
+// Retorna true se tratou a borda (o loop deve recomeçar).
 bool tratarBorda() {
   if (!foraDaArena()) {
     return false;
@@ -264,10 +354,9 @@ bool tratarBorda() {
   return true;
 }
 
-void estrategia1() {
-  frente(VEL_FRENTE);
-}
+// ---------- Comportamento auxiliar ----------
 
+// Gira procurando o oponente; se o vir, ataca de frente
 void procurarGirando() {
   if (oponenteVisto()) {
     frente(VEL_ATAQUE);
@@ -276,6 +365,14 @@ void procurarGirando() {
   }
 }
 
+// ---------- Estratégias ----------
+
+// Estratégia 1: avança reto o tempo todo
+void estrategia1() {
+  frente(VEL_FRENTE);
+}
+
+// Estratégia 2: gira e avança um pouco (desvio inicial) e depois procura girando
 void estrategia2() {
   unsigned long passou = millis() - tempoInicio;
 
@@ -288,10 +385,17 @@ void estrategia2() {
   }
 }
 
+// Estratégia 3: procura girando desde o início
 void estrategia3() {
   procurarGirando();
 }
 
+
+// ============================================================
+//  6. DEPURAÇÃO
+// ============================================================
+
+// Imprime no Serial o estado dos sensores a cada INTERVALO_PRINT ms
 void depurar() {
   unsigned long tempoAtual = millis();
 
@@ -308,6 +412,11 @@ void depurar() {
   }
 }
 
+
+// ============================================================
+//  7. SETUP E LOOP
+// ============================================================
+
 void setup() {
   Serial.begin(9600);
   motoresIniciar();
@@ -320,6 +429,7 @@ void setup() {
   Serial.print("Estrategia escolhida: ");
   Serial.println(estrategia);
 
+  // Espera de 5 segundos antes da luta começar
   delay(5000);
   tempoInicio = millis();
 }
@@ -329,10 +439,12 @@ void loop() {
     depurar();
   }
 
+  // Prioridade máxima: não cair da arena
   if (tratarBorda()) {
     return;
   }
 
+  // Executa a estratégia escolhida
   if (estrategia == 1) {
     estrategia1();
   } else if (estrategia == 2) {

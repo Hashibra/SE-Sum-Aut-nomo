@@ -41,10 +41,13 @@ const int VEL_ATAQUE = 255;
 const int VEL_FRENTE = 200;
 const int VEL_GIRO = 150;
 
-const unsigned long TEMPO_RECUO = 300;
-const unsigned long TEMPO_GIRO_BORDA = 250;
-const unsigned long TEMPO_DESVIO_GIRO = 250;
-const unsigned long TEMPO_DESVIO_FRENTE = 400;
+// Multiplicador de tempo: 10 para testar no Tinkercad, 1 no robô real
+const unsigned long ESCALA_TEMPO = 10;
+
+const unsigned long TEMPO_RECUO = 300UL * ESCALA_TEMPO;
+const unsigned long TEMPO_GIRO_BORDA = 250UL * ESCALA_TEMPO;
+const unsigned long TEMPO_DESVIO_GIRO = 250UL * ESCALA_TEMPO;
+const unsigned long TEMPO_DESVIO_FRENTE = 400UL * ESCALA_TEMPO;
 
 int estrategia = 1;
 

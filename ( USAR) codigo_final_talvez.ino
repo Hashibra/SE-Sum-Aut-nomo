@@ -1,4 +1,5 @@
 /*
+(Pai nosso que estais no céu...)
  *  - 2 motores controlados por ponte H (PWM)
  *  - 1 sensor infravermelho (detecta a borda da arena)
  *  - 1 sensor ultrassônico com biblioteca NewPing (detecta o oponente)
@@ -346,4 +347,80 @@ void estrategia1() {
   frente(VEL_FRENTE);
 }
 
-// Estratégia 2:
+// Estratégia 2: gira e avança um pouco (desvio inicial) e depois procura girando
+void estrategia2() {
+  unsigned long passou = millis() - tempoInicio;
+
+  if (passou < TEMPO_DESVIO_GIRO) {
+    girarDireita(200);
+  } else if (passou < TEMPO_DESVIO_GIRO + TEMPO_DESVIO_FRENTE) {
+    frente(200);
+  } else {
+    procurarGirando();
+  }
+}
+
+// Estratégia 3: procura girando desde o início
+void estrategia3() {
+  procurarGirando();
+}
+
+
+// # DEBUG # (muita reza)
+
+// Imprime no Serial o estado dos sensores a cada INTERVALO_PRINT ms
+void depurar() {
+  unsigned long tempoAtual = millis();
+
+  if (tempoAtual - ultimoTempoPrint >= INTERVALO_PRINT) {
+    ultimoTempoPrint = tempoAtual;
+
+    lerDistancia();   // garante que a distância é atualizada em qualquer estratégia
+
+    Serial.print("IR: ");
+    Serial.print(digitalRead(sensor1));
+    Serial.print(" | distancia: ");
+    Serial.print(getDistancia());
+    Serial.println(" cm");
+  }
+}
+
+
+// # SETUP E LOOP #
+
+void setup() {
+  Serial.begin(9600);
+  motoresIniciar();
+  sensoresIniciar();
+
+  Serial.println("Aguardando botao...");
+
+  // Aguarda o botão da estratégia escolhida e só então começa a contagem
+  estrategia = esperarBotaoEstrategia();
+  Serial.print("Estrategia escolhida: ");
+  Serial.println(estrategia);
+
+  // Espera de 5 segundos antes da luta começar
+  delay(5000);
+  tempoInicio = millis();
+}
+
+void loop() {
+  if (DEBUG) {
+    depurar();
+  }
+
+  // Prioridade máxima: não cair da arena
+  if (tratarBorda()) {
+    return;
+  }
+
+  // Executa a estratégia escolhida
+  if (estrategia == 1) {
+    estrategia1();
+  } else if (estrategia == 2) {
+    estrategia2();
+  } else if (estrategia == 3) {
+    estrategia3();
+  }
+}

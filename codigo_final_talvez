@@ -42,7 +42,7 @@ const int BOTAO_EST3 = 5;
 // Debounce
 const int NUM_BOTOES = 3;
 const int PINOS_BOTOES[NUM_BOTOES] = {BOTAO_EST1, BOTAO_EST2, BOTAO_EST3};
-const unsigned long TEMPO_DEBOUNCE = 50;  // ms
+const unsigned long TEMPO_DEBOUNCE = 50;  // ms (aumente se o botão "tremer")
 
 // # ULTRASSÔNICO
 #define TRIG_PIN 12
@@ -70,9 +70,10 @@ const bool DEBUG = true;
 const unsigned long INTERVALO_PRINT = 200; // ms entre prints
 
 // OUTRAS VARIÁVEIS
-// Estado dos botões (para o debounce)
-bool ultimaLeituraBotao[NUM_BOTOES]; // true = apertado
-unsigned long ultimaMudancaBotao[NUM_BOTOES]; // momento da última mudança
+// Estado dos botões (debounce no estilo do exemplo "Debounce" da Arduino)
+int estadoBotao[NUM_BOTOES];                    // estado estável atual (HIGH = apertado)
+int ultimoEstadoBotao[NUM_BOTOES];              // leitura anterior
+unsigned long ultimoTempoDebounce[NUM_BOTOES];  // última vez que a leitura mudou
 
 // Estado do sensor ultrassônico
 unsigned long ultimoTempoMedicao = 0;
@@ -203,25 +204,45 @@ void sensoresIniciar() {
 
   for (int i = 0; i < NUM_BOTOES; i++) {
     pinMode(PINOS_BOTOES[i], INPUT);   // pull-down externo
-    ultimaLeituraBotao[i] = false;
-    ultimaMudancaBotao[i] = millis();
+    estadoBotao[i] = LOW;
+    ultimoEstadoBotao[i] = LOW;
+    ultimoTempoDebounce[i] = 0;
   }
 }
 
-// # Botões (inicialização)
-// Retorna true se o botão i está apertado de forma estável por TEMPO_DEBOUNCE ms.
-// Com pull-down externo, botão apertado = HIGH.
+// # Botões (debounce)
+// Debounce no estilo do exemplo da Arduino.
+// Retorna true UMA vez, no momento em que o botão i passa a ficar
+// apertado (HIGH) de forma estável. Com pull-down externo, apertado = HIGH.
 bool botaoApertado(int i) {
-  bool leitura = (digitalRead(PINOS_BOTOES[i]) == HIGH);
+  bool apertou = false;
 
-  // Se a leitura mudou, reinicia a contagem
-  if (leitura != ultimaLeituraBotao[i]) {
-    ultimaLeituraBotao[i] = leitura;
-    ultimaMudancaBotao[i] = millis();
+  // Lê o estado do botão
+  int leitura = digitalRead(PINOS_BOTOES[i]);
+
+  // Se a leitura mudou (ruído ou aperto), reinicia o contador do debounce
+  if (leitura != ultimoEstadoBotao[i]) {
+    ultimoTempoDebounce[i] = millis();
   }
 
-  // Só vale se estiver apertado e estável pelo tempo mínimo
-  return leitura && (millis() - ultimaMudancaBotao[i] >= TEMPO_DEBOUNCE);
+  // Se a leitura está estável há mais que TEMPO_DEBOUNCE, vale como estado real
+  if ((millis() - ultimoTempoDebounce[i]) > TEMPO_DEBOUNCE) {
+
+    // Se o estado estável mudou
+    if (leitura != estadoBotao[i]) {
+      estadoBotao[i] = leitura;
+
+      // Só considera "apertou" se o novo estado for HIGH
+      if (estadoBotao[i] == HIGH) {
+        apertou = true;
+      }
+    }
+  }
+
+  // Guarda a leitura para a próxima chamada
+  ultimoEstadoBotao[i] = leitura;
+
+  return apertou;
 }
 
 // Espera um dos 3 botões ser apertado e devolve o número da estratégia (1, 2 ou 3).
@@ -325,80 +346,4 @@ void estrategia1() {
   frente(VEL_FRENTE);
 }
 
-// Estratégia 2: gira e avança um pouco (desvio inicial) e depois procura girando
-void estrategia2() {
-  unsigned long passou = millis() - tempoInicio;
-
-  if (passou < TEMPO_DESVIO_GIRO) {
-    girarDireita(200);
-  } else if (passou < TEMPO_DESVIO_GIRO + TEMPO_DESVIO_FRENTE) {
-    frente(200);
-  } else {
-    procurarGirando();
-  }
-}
-
-// Estratégia 3: procura girando desde o início
-void estrategia3() {
-  procurarGirando();
-}
-
-
-// # DEBUG # (muita reza)
-
-// Imprime no Serial o estado dos sensores a cada INTERVALO_PRINT ms
-void depurar() {
-  unsigned long tempoAtual = millis();
-
-  if (tempoAtual - ultimoTempoPrint >= INTERVALO_PRINT) {
-    ultimoTempoPrint = tempoAtual;
-
-    lerDistancia();   // garante que a distância é atualizada em qualquer estratégia
-
-    Serial.print("IR: ");
-    Serial.print(digitalRead(sensor1));
-    Serial.print(" | distancia: ");
-    Serial.print(getDistancia());
-    Serial.println(" cm");
-  }
-}
-
-
-// # SETUP E LOOP #
-
-void setup() {
-  Serial.begin(9600);
-  motoresIniciar();
-  sensoresIniciar();
-
-  Serial.println("Aguardando botao...");
-
-  // Aguarda o botão da estratégia escolhida e só então começa a contagem
-  estrategia = esperarBotaoEstrategia();
-  Serial.print("Estrategia escolhida: ");
-  Serial.println(estrategia);
-
-  // Espera de 5 segundos antes da luta começar
-  delay(5000);
-  tempoInicio = millis();
-}
-
-void loop() {
-  if (DEBUG) {
-    depurar();
-  }
-
-  // Prioridade máxima: não cair da arena
-  if (tratarBorda()) {
-    return;
-  }
-
-  // Executa a estratégia escolhida
-  if (estrategia == 1) {
-    estrategia1();
-  } else if (estrategia == 2) {
-    estrategia2();
-  } else if (estrategia == 3) {
-    estrategia3();
-  }
-}
+// Estratégia 2:

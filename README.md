@@ -36,10 +36,10 @@ O sistema de controle utiliza os sensores (ultrassônico e infravermelho) para d
 * **Simulação:** Tinkercad Circuits.
 * **Versionamento:** Git e GitHub.
 
-### Protótipo realizado no Tinkercad Circuits
+## Protótipo realizado no Tinkercad Circuits
 ![](Circuito_Tinkercad.png)
 
-**Observações**
+###**Observações**
 Para a realização dos testes virtuais, foi preciso realizar algumas alterações do circuito real para o circuito virtual:
 - O Tinkercad **não possui L293N**, foi preciso utilizar o **L293D**.
 - O Tinkercad também **não possui Arduino MEGA 2560**, então foi preciso utilizar o **Arduino UNO**.
@@ -47,12 +47,12 @@ Para a realização dos testes virtuais, foi preciso realizar algumas alteraçõ
 - Apenas é possível realizar **testes com 2 motores** por vez (um de cada lado). O Tinkercad **não suporta 4 motores** na ponte H, ocorre erro de **inicialização**.
 - **Não** é possível utilizar a **biblioteca NewPing**.
 
+## Imagem do Sumô Autônomo Finalizado
+![](Sumo_autonomo_finalizado.jpeg)
+
 ## Futuras melhorias
 * Aprimorar a identificação e a localização do oponente por meio do sensor ultrassônico.
 * Desenvolver e comparar diferentes estratégias de ataque, buscando melhorar o desempenho nas competições.
 * Ajustar a velocidade e a resposta dos motores para otimizar as manobras do robô.
 * Adicionar um segundo sensor infravermelho, ampliando a capacidade de detecção das bordas da arena, uma vez que a versão atual foi desenvolvida com a limitação de utilizar apenas um sensor.
 * Implementar um acelerômetro para obter informações sobre a aceleração e os movimentos do robô, possibilitando explorar novas estratégias de controle.
-
-### Imagem do Sumô Autônomo Finalizado
-![](Sumo_autonomo_finalizado.jpeg)

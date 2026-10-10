@@ -37,6 +37,7 @@ O sistema de controle utiliza os sensores (ultrassônico e infravermelho) para d
 * **Versionamento:** Git e GitHub.
 
 ### Protótipo realizado no Tinkercad Circuits
+![](Circuito_Tinkercad.png)
 
 **Observações**
 Para a realização dos testes virtuais, foi preciso realizar algumas alterações do circuito real para o circuito virtual:
@@ -54,4 +55,4 @@ Para a realização dos testes virtuais, foi preciso realizar algumas alteraçõ
 * Implementar um acelerômetro para obter informações sobre a aceleração e os movimentos do robô, possibilitando explorar novas estratégias de controle.
 
 ### Imagem do Sumô Autônomo Finalizado
-![](Sumo20%autonomo.jpeg)
+![](Sumo_autonomo_finalizado.jpeg)

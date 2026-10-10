@@ -1,19 +1,4 @@
-/*
- * 2 motores controlados por ponte H (PWM)
- * 1 sensor infravermelho (detecta a borda da arena)
- * 1 sensor ultrassônico sem biblioteca (detecta o oponente)
- * 3 botões para escolher a estratégia antes da luta
- 
- Organização do arquivo:
- 1. Pinos e constantes
- 2. Variáveis globais
- 3. Controle dos motores
- 4. Sensores e botões
- 5. Comportamentos (borda e estratégias)
- 6. Depuração
- 7. setup() e loop() */
-
- // TODOS OS PINOS E MOTORES
+// TODOS OS PINOS E MOTORES
 
 // # MOTORES #
 // Pinos dos motores

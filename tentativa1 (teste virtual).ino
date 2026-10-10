@@ -1,113 +1,91 @@
 /*
- * ============================================================
- *  ROBÔ SUMÔ AUTÔNOMO (Arduino UNO)
- * ============================================================
- *  - 2 motores controlados por ponte H (PWM)
- *  - 1 sensor infravermelho (detecta a borda da arena)
- *  - 1 sensor ultrassônico (detecta o oponente)
- *  - 3 botões para escolher a estratégia antes da luta
- *
- *  Organização do arquivo:
- *    1. Pinos e constantes
- *    2. Variáveis globais
- *    3. Controle dos motores
- *    4. Sensores e botões
- *    5. Comportamentos (borda e estratégias)
- *    6. Depuração
- *    7. setup() e loop()
- * ============================================================
- */
+ * 2 motores controlados por ponte H (PWM)
+ * 1 sensor infravermelho (detecta a borda da arena)
+ * 1 sensor ultrassônico sem biblioteca (detecta o oponente)
+ * 3 botões para escolher a estratégia antes da luta
+ 
+ Organização do arquivo:
+ 1. Pinos e constantes
+ 2. Variáveis globais
+ 3. Controle dos motores
+ 4. Sensores e botões
+ 5. Comportamentos (borda e estratégias)
+ 6. Depuração
+ 7. setup() e loop() */
 
+ // TODOS OS PINOS E MOTORES
 
-// ============================================================
-//  1. PINOS E CONSTANTES
-// ============================================================
-
-// ---------- Motores ----------
-// Pinos dos motores (todos PWM no UNO: 6, 9, 10, 11)
+// # MOTORES #
+// Pinos dos motores
 const int MOT_ESQ_A = 6;
 const int MOT_ESQ_B = 10;
 const int MOT_DIR_A = 11;
 const int MOT_DIR_B = 9;
 
-// Inversão do sentido de cada motor (1 = normal, -1 = invertido)
+// Inversão do sentido de cada motor
 const int INVERTE_ESQ = 1;
 const int INVERTE_DIR = 1;
 
 // Velocidade mínima (PWM) em que o motor realmente começa a girar
-const int VEL_MINIMA = 1;
+const int VEL_MINIMA = 100;
 
-// ---------- Sensor infravermelho (borda) ----------
-// Único sensor infravermelho (HIGH = fora da arena)
+// # INFRAVERMELHO #
 const int sensor1 = 2;
 
-// ---------- Botões de estratégia ----------
-// Botões de estratégia em PULL-DOWN externo (resistor de 1k para o GND)
-// Solto = LOW, apertado = HIGH
+// # BOTÕES #
 const int BOTAO_EST1 = 3;
 const int BOTAO_EST2 = 4;
 const int BOTAO_EST3 = 5;
 
-// Debounce dos botões
+// Debounce
 const int NUM_BOTOES = 3;
 const int PINOS_BOTOES[NUM_BOTOES] = {BOTAO_EST1, BOTAO_EST2, BOTAO_EST3};
-const unsigned long TEMPO_DEBOUNCE = 50;  // ms
+const unsigned long TEMPO_DEBOUNCE = 50;  // ms (aumente se o botão "tremer")
 
-// ---------- Sensor ultrassônico (oponente) ----------
+// # ULTRASSÔNICO
 #define TRIG_PIN 12
 #define ECHO_PIN 13
-#define DISTANCIA_MAXIMA 200                       // cm
+#define DISTANCIA_MAXIMA 200
 
-const unsigned long INTERVALO_MEDICAO = 50;        // ms entre medições
-const int DIST_ATAQUE = 35;                        // cm: abaixo disso, ataca
+const unsigned long INTERVALO_MEDICAO = 50; // ms entre medições
+const int DIST_ATAQUE = 60; // cm: abaixo disso, ataca
 
-// ---------- Velocidades (PWM de 0 a 255) ----------
+// VELOCIDADES
 const int VEL_ATAQUE = 255;
 const int VEL_FRENTE = 200;
-const int VEL_GIRO = 150;
+const int VEL_GIRO = 120;
 
-// ---------- Tempos das manobras ----------
-// Multiplicador de tempo: 10 para testar no Tinkercad, 1 no robô real
-const unsigned long ESCALA_TEMPO = 10;
+// TEMPO DAS MOVIMENTAÇÕES
+const unsigned long TEMPO_RECUO = 300; // recuo ao achar a borda
+const unsigned long TEMPO_GIRO_BORDA = 250; // giro após o recuo
+const unsigned long TEMPO_DESVIO_GIRO = 250; // estratégia 2: giro inicial
+const unsigned long TEMPO_DESVIO_FRENTE = 400; // estratégia 2: avanço inicial
 
-const unsigned long TEMPO_RECUO = 300UL * ESCALA_TEMPO;          // recuo ao achar a borda
-const unsigned long TEMPO_GIRO_BORDA = 250UL * ESCALA_TEMPO;     // giro após o recuo
-const unsigned long TEMPO_DESVIO_GIRO = 250UL * ESCALA_TEMPO;    // estratégia 2: giro inicial
-const unsigned long TEMPO_DESVIO_FRENTE = 400UL * ESCALA_TEMPO;  // estratégia 2: avanço inicial
-
-// ---------- Depuração ----------
+// DEBUG (nosso salvador)
 const bool DEBUG = true;
-const unsigned long INTERVALO_PRINT = 200;         // ms entre prints
+const unsigned long INTERVALO_PRINT = 200; // ms entre prints
 
-
-// ============================================================
-//  2. VARIÁVEIS GLOBAIS
-// ============================================================
-
-// Estado dos botões (para o debounce)
-bool ultimaLeituraBotao[NUM_BOTOES];            // true = apertado (leitura crua)
-unsigned long ultimaMudancaBotao[NUM_BOTOES];   // momento da última mudança
+// OUTRAS VARIÁVEIS
+// Estado dos botões (debounce no estilo do exemplo "Debounce" da Arduino)
+int estadoBotao[NUM_BOTOES];                    // estado estável atual (HIGH = apertado)
+int ultimoEstadoBotao[NUM_BOTOES];              // leitura anterior
+unsigned long ultimoTempoDebounce[NUM_BOTOES];  // última vez que a leitura mudou
 
 // Estado do sensor ultrassônico
 unsigned long ultimoTempoMedicao = 0;
 float distanciaAtual = DISTANCIA_MAXIMA;
 
 // Estado da luta
-int estrategia = 1;                // estratégia escolhida (1, 2 ou 3)
-unsigned long tempoInicio = 0;     // momento em que a luta começou
+int estrategia = 1;
+unsigned long tempoInicio = 0; // momento em que a luta começou
 
 // Estado da depuração
 unsigned long ultimoTempoPrint = 0;
 
 
-// ============================================================
-//  3. CONTROLE DOS MOTORES
-// ============================================================
+// CONTROLE DOS MOTORES
 
-// ---------- Baixo nível ----------
-
-// Limita o valor entre -255 e 255 e reescala o módulo para
-// começar em VEL_MINIMA (0 continua sendo 0).
+// # AJUSTE DE VELOCIDADE
 int ajustarVel(int valor_pedido) {
   int vel = constrain(valor_pedido, -255, 255);
 
@@ -127,7 +105,7 @@ int ajustarVel(int valor_pedido) {
   return sinal * modulo;
 }
 
-// Motor esquerdo: vel > 0 = frente, vel < 0 = trás, 0 = parado
+// # Motor esquerdo: vel > 0 = frente, vel < 0 = trás, 0 = parado
 void motorEsquerdo(int vel) {
   vel = ajustarVel(vel) * INVERTE_ESQ;
   if (vel > 0) {
@@ -142,7 +120,7 @@ void motorEsquerdo(int vel) {
   }
 }
 
-// Motor direito: vel > 0 = frente, vel < 0 = trás, 0 = parado
+// # Motor direito: vel > 0 = frente, vel < 0 = trás, 0 = parado
 void motorDireito(int vel) {
   vel = ajustarVel(vel) * INVERTE_DIR;
   if (vel > 0) {
@@ -157,13 +135,13 @@ void motorDireito(int vel) {
   }
 }
 
-// Controla os dois motores de uma vez
+// # Controla os dois motores de uma vez
 void motores(int esq, int dir) {
   motorEsquerdo(esq);
   motorDireito(dir);
 }
 
-// ---------- Movimentos ----------
+// MOVIMENTOS
 
 void parar() {
   motores(0, 0);
@@ -203,8 +181,7 @@ void freio() {
   digitalWrite(MOT_DIR_B, HIGH);
 }
 
-// ---------- Inicialização ----------
-
+// Inicialização para o SETUP
 void motoresIniciar() {
   pinMode(MOT_ESQ_A, OUTPUT);
   pinMode(MOT_ESQ_B, OUTPUT);
@@ -214,40 +191,58 @@ void motoresIniciar() {
 }
 
 
-// ============================================================
-//  4. SENSORES E BOTÕES
-// ============================================================
+// # SENSORES E BOTÕES #
 
-// ---------- Inicialização ----------
-
+// # Sensores (inicialização)
+// Os pinos TRIG/ECHO são configurados aqui.
 void sensoresIniciar() {
   pinMode(sensor1, INPUT);
 
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+  digitalWrite(TRIG_PIN, LOW);
 
   for (int i = 0; i < NUM_BOTOES; i++) {
     pinMode(PINOS_BOTOES[i], INPUT);   // pull-down externo
-    ultimaLeituraBotao[i] = false;
-    ultimaMudancaBotao[i] = millis();
+    estadoBotao[i] = LOW;
+    ultimoEstadoBotao[i] = LOW;
+    ultimoTempoDebounce[i] = 0;
   }
 }
 
-// ---------- Botões ----------
-
-// Retorna true se o botão i está apertado de forma estável por TEMPO_DEBOUNCE ms.
-// Com pull-down externo, botão apertado = HIGH.
+// # Botões (debounce)
+// Debounce no estilo do exemplo da Arduino.
+// Retorna true UMA vez, no momento em que o botão i passa a ficar
+// apertado (HIGH) de forma estável. Com pull-down externo, apertado = HIGH.
 bool botaoApertado(int i) {
-  bool leitura = (digitalRead(PINOS_BOTOES[i]) == HIGH);
+  bool apertou = false;
 
-  // Se a leitura mudou, reinicia a contagem
-  if (leitura != ultimaLeituraBotao[i]) {
-    ultimaLeituraBotao[i] = leitura;
-    ultimaMudancaBotao[i] = millis();
+  // Lê o estado do botão
+  int leitura = digitalRead(PINOS_BOTOES[i]);
+
+  // Se a leitura mudou (ruído ou aperto), reinicia o contador do debounce
+  if (leitura != ultimoEstadoBotao[i]) {
+    ultimoTempoDebounce[i] = millis();
   }
 
-  // Só vale se estiver apertado e estável pelo tempo mínimo
-  return leitura && (millis() - ultimaMudancaBotao[i] >= TEMPO_DEBOUNCE);
+  // Se a leitura está estável há mais que TEMPO_DEBOUNCE, vale como estado real
+  if ((millis() - ultimoTempoDebounce[i]) > TEMPO_DEBOUNCE) {
+
+    // Se o estado estável mudou
+    if (leitura != estadoBotao[i]) {
+      estadoBotao[i] = leitura;
+
+      // Só considera "apertou" se o novo estado for HIGH
+      if (estadoBotao[i] == HIGH) {
+        apertou = true;
+      }
+    }
+  }
+
+  // Guarda a leitura para a próxima chamada
+  ultimoEstadoBotao[i] = leitura;
+
+  return apertou;
 }
 
 // Espera um dos 3 botões ser apertado e devolve o número da estratégia (1, 2 ou 3).
@@ -274,14 +269,13 @@ int esperarBotaoEstrategia() {
   }
 }
 
-// ---------- Sensor infravermelho (borda) ----------
-
+// # Infravermelho
 // true se o sensor IR detecta que o robô está fora da arena
 bool foraDaArena() {
-  return digitalRead(sensor1) == HIGH;
+  return digitalRead(sensor1) == LOW;
 }
 
-// ---------- Sensor ultrassônico (oponente) ----------
+// # Ultrassônico
 
 // Faz uma nova medição a cada INTERVALO_MEDICAO ms e guarda em distanciaAtual.
 // Retorna true se mediu agora, false se ainda não deu o intervalo.
@@ -291,25 +285,26 @@ bool lerDistancia() {
   if (tempoAtual - ultimoTempoMedicao >= INTERVALO_MEDICAO) {
     ultimoTempoMedicao = tempoAtual;
 
-    // Pulso de disparo no TRIG
+    // Envia um pulso de 10 microssegundos para iniciar a medição
     digitalWrite(TRIG_PIN, LOW);
     delayMicroseconds(2);
-
     digitalWrite(TRIG_PIN, HIGH);
     delayMicroseconds(10);
     digitalWrite(TRIG_PIN, LOW);
 
-    // Tempo do eco (timeout de 30 ms)
-    unsigned long duracao = pulseIn(ECHO_PIN, HIGH, 30000);
+    // Mede a duração do eco, com tempo limite para evitar travamentos
+    unsigned long duracao = pulseIn(ECHO_PIN, HIGH, 12000UL);
 
     if (duracao == 0) {
       // Sem eco: considera que não há nada à frente
       distanciaAtual = DISTANCIA_MAXIMA;
     } else {
-      distanciaAtual = duracao / 58.0;   // converte µs em cm
+      int cm = duracao / 58;
 
-      if (distanciaAtual > DISTANCIA_MAXIMA) {
+      if (cm > DISTANCIA_MAXIMA) {
         distanciaAtual = DISTANCIA_MAXIMA;
+      } else {
+        distanciaAtual = cm;
       }
     }
 
@@ -331,14 +326,9 @@ bool oponenteVisto() {
 }
 
 
-// ============================================================
-//  5. COMPORTAMENTOS (BORDA E ESTRATÉGIAS)
-// ============================================================
+// # COMPORTAMENTOS E ESTRATÉGIAS #
 
-// ---------- Tratamento de borda ----------
-
-// Com apenas 1 sensor não dá para saber de que lado está a borda,
-// então o robô recua e gira sempre para a direita.
+// # Borda
 // Retorna true se tratou a borda (o loop deve recomeçar).
 bool tratarBorda() {
   if (!foraDaArena()) {
@@ -354,8 +344,7 @@ bool tratarBorda() {
   return true;
 }
 
-// ---------- Comportamento auxiliar ----------
-
+// # Procurar inimigo
 // Gira procurando o oponente; se o vir, ataca de frente
 void procurarGirando() {
   if (oponenteVisto()) {
@@ -365,8 +354,7 @@ void procurarGirando() {
   }
 }
 
-// ---------- Estratégias ----------
-
+// # Estratégias
 // Estratégia 1: avança reto o tempo todo
 void estrategia1() {
   frente(VEL_FRENTE);
@@ -391,9 +379,7 @@ void estrategia3() {
 }
 
 
-// ============================================================
-//  6. DEPURAÇÃO
-// ============================================================
+// # DEBUG # (muita reza)
 
 // Imprime no Serial o estado dos sensores a cada INTERVALO_PRINT ms
 void depurar() {
@@ -413,9 +399,7 @@ void depurar() {
 }
 
 
-// ============================================================
-//  7. SETUP E LOOP
-// ============================================================
+// # SETUP E LOOP #
 
 void setup() {
   Serial.begin(9600);

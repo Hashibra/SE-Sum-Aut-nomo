@@ -1,5 +1,5 @@
 # SUMÔ AUTÔNOMO
-![Sumô Autônomo finalizado](Sumo autonomo.jpeg)
+![Sumô Autônomo finalizado](Sumo%20autonomo.jpeg)
 ## Objetivo
 Desenvolvimento de um Sumô Autônomo para o Portas Abertas de 2026 da UNIFESP, representado pela Disciplina **Sistemas Embarcados**.
 

@@ -31,7 +31,7 @@ O sistema de controle utiliza os sensores (ultrassônico e infravermelho) para d
 ## Tecnologias utilizadas
 * **Placa:** Arduino Mega 2560.
 * **Microcontrolador:** ATmega2560.
-* **Linguagem de programação:** C/C++.
+* **Linguagem de programação:** C++.
 * **IDE:** Arduino IDE.
 * **Simulação:** Tinkercad Circuits.
 * **Versionamento:** Git e GitHub.

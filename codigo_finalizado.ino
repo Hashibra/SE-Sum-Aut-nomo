@@ -322,7 +322,6 @@ void procurarGirando() {
     frente(VEL_ATAQUE);
   } else {
     girarDireita(VEL_GIRO);
-    frente(120);
   }
 }
 

@@ -39,7 +39,7 @@ O sistema de controle utiliza os sensores (ultrassônico e infravermelho) para d
 ## Protótipo realizado no Tinkercad Circuits
 ![](Circuito_Tinkercad.png)
 
-###**Observações**
+### Observações
 Para a realização dos testes virtuais, foi preciso realizar algumas alterações do circuito real para o circuito virtual:
 - O Tinkercad **não possui L293N**, foi preciso utilizar o **L293D**.
 - O Tinkercad também **não possui Arduino MEGA 2560**, então foi preciso utilizar o **Arduino UNO**.

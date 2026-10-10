@@ -15,7 +15,7 @@ O Sumô Autônomo utiliza um sistema embarcado baseado em Arduino para controlar
 * 3 Push Buttons;
 * 3 Resistores de 10 kΩ;
 * 1 Bateria Lipo 3s 2200mah 11.1V com conector XT60;
-* 1 Chassi de Sumô (carcaça, 4 rodas, parafusos);
+* 1 Chassi de Sumô (carcaça, 4 rodas e parafusos);
 * 1 Power Button;
 * 1 Mini Protoboard Breadboard 170 Pontos;
 * MUITOS Jumpers macho-macho e macho-fêmea.

@@ -4,7 +4,7 @@
 Desenvolvimento de um Sumô Autônomo para o Portas Abertas 2026 da UNIFESP, representado pela Disciplina **Sistemas Embarcados**.
 
 ## Sobre o projeto
-O sumô autônomo utiliza um sistema embarcado baseado em Arduino para controlar os motores e interpretar os dados recebidos pelos sensores. A partir dessas informações, ele toma decisões de movimentação para localizar o adversário, atacar e evitar sair da arena.
+O Sumô Autônomo utiliza um sistema embarcado baseado em Arduino para controlar os motores e interpretar os dados recebidos pelos sensores. A partir dessas informações, ele toma decisões de movimentação para localizar o adversário, atacar e evitar sair da arena.
 
 ## Componentes
 * 1 Arduino Mega 2560;
